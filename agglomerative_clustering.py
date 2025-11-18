@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def agglomerative_clustering(df, config):
+    '''
+    Performs agglomerative clustering on the provided dataset.
+    Returns the model labels and the built dendrogram.
+    '''
     model = AgglomerativeClustering(n_clusters=config['n_clusters'],
                                     linkage=config['linkage'],
                                     metric=config['similarity_metric'],
@@ -18,7 +22,7 @@ def plot_dendrogram(model, k):
     Create linkage matrix and then plot the dendrogram
     SOURCE CODE: sklearn
     '''
-    # create the counts of samples under each node
+    # Create the counts of samples under each node
     counts = np.zeros(model.children_.shape[0])
     n_samples = len(model.labels_)
     for i, merge in enumerate(model.children_):

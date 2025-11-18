@@ -1,4 +1,4 @@
-# WORK 3: Classification with Lazy Learning and SVM
+# WORK 3: 
 
 ## Team Members
 
