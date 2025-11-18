@@ -14,8 +14,10 @@ class KMeans:
         self.cluster_assignments = np.zeros(self.X.shape[0], dtype=int) # To store the cluster assignment for each data point
 
     def initialize_centroids(self):
-        for idx in range(self.k):
-            center = (np.random.random(self.X.shape[1]))
+        random_indices = np.random.choice(self.X.shape[0], self.k, replace=False)
+
+        for idx, random_idx in enumerate(random_indices):
+            center = self.X[random_idx].copy()
             points = []
             centroid = {
                 'center': center,
@@ -43,11 +45,12 @@ class KMeans:
         for idx in range(self.k):
             centroid_points = np.array(self.centroids[idx]['points'])
 
-            if centroid_points.size == 0:  # skip if the list is empty (1st iteration), just safety point
+            if centroid_points.size == 0:  # Reinitialize this centroid to a random data point
+                random_idx = np.random.randint(self.X.shape[0])
+                self.centroids[idx]['center'] = self.X[random_idx].copy()
                 continue
 
             re_computed_center = centroid_points.mean(axis=0)  # Compute each dimension mean
-
             self.centroids[idx]['center'] = re_computed_center
 
 
@@ -115,9 +118,9 @@ class KMeans:
 if __name__ == "__main__":
 
     # Choose dataset
-    dataset = './data/heart-statlog.preprocessed.csv'
-    #  dataset = ./data/hypothyroid.preprocessed.csv'
-    # dataset = ./data/hepatitis.preprocessed.csv'
+    # dataset = './data/heart-statlog.preprocessed.csv'
+    dataset = './data/hypothyroid.preprocessed.csv'
+    # dataset = './data/hepatitis.preprocessed.csv'
 
     # Load data from the CSV file
     try:
@@ -130,7 +133,7 @@ if __name__ == "__main__":
     # Separate the features from the labels
         # Use column names (all columns EXCEPT the last one, 'Class')
     X_features = data.drop(columns=['Class'])
-    # X_features = X_features.drop(columns=['TBG']) #Null -->  hypothyroid DATASET
+    X_features = X_features.drop(columns=['TBG']) #Null -->  hypothyroid DATASET
 
     # Use the 'Class' column for labels
     y_labels = data['Class']
@@ -142,7 +145,7 @@ if __name__ == "__main__":
     k = 2 # Since we know there are 2 classes
     kmeans_model = KMeans(k=k, X=X_data)
 
-    final_clusters_data, cluster_assignments = kmeans_model.fit(max_iterations=5000, tolerance=0)
+    final_clusters_data, cluster_assignments = kmeans_model.fit(max_iterations=500, tolerance=1e-10)
 
     #############
     ## CHATGPT ##
@@ -160,27 +163,41 @@ if __name__ == "__main__":
 
     print(confusion_matrix)
 
-    # 7. Calculate the "accuracy"
-    print("\n\n--- K-Means 'Accuracy' Calculation ---")
-    print("Note: K-Means doesn't know if Cluster 0 is 'present' or 'absent'.")
-    print("We check both possibilities and take the best mapping.")
+    # Calculate the "accuracy"
+print("\n\n--- K-Means 'Accuracy' Calculation ---")
+print("Note: K-Means doesn't know cluster-class mapping.")
+print("We check possibilities and take the best mapping.")
 
-    # Convert the matrix to a numpy array for easy math
-    cm_array = confusion_matrix.values
+# Convert the matrix to a numpy array for easy math
+cm_array = confusion_matrix.values
+print(f"Confusion matrix shape: {cm_array.shape}")
 
+# Handle cases where we don't get exactly k clusters
+n_clusters = cm_array.shape[1]
+n_classes = cm_array.shape[0]
+
+if n_clusters == 1:
+    # Only one cluster found - compare to majority class
+    total_points = np.sum(cm_array)
+    majority_correct = np.max(cm_array)
+    best_accuracy = majority_correct / total_points
+    print(f"Warning: Algorithm converged to only 1 cluster")
+    print(f"Best K-Means 'Accuracy': {best_accuracy * 100:.2f}%")
+    
+elif n_clusters == 2:
+    # Normal case - two clusters
     # Possibility 1: Cluster 0 = 'absent', Cluster 1 = 'present'
-    # (Assuming 'absent' is row 0 and 'present' is row 1 after sorting)
     correct_1 = cm_array[0, 0] + cm_array[1, 1]
-
     # Possibility 2: Cluster 0 = 'present', Cluster 1 = 'absent'
     correct_2 = cm_array[0, 1] + cm_array[1, 0]
 
     total_points = np.sum(cm_array)
-
-    # Take the best of the two possibilities
     best_accuracy = max(correct_1, correct_2) / total_points
 
     print(f"\nTotal points: {total_points}")
     print(f"Possibility 1 (Cluster 0='absent', Cluster 1='present'): {correct_1} correct")
     print(f"Possibility 2 (Cluster 0='present', Cluster 1='absent'): {correct_2} correct")
     print(f"\nBest K-Means 'Accuracy': {best_accuracy * 100:.2f}%")
+    
+else:
+    print(f"Unexpected number of clusters: {n_clusters}")
