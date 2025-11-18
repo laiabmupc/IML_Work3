@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+from sklearn.metrics import confusion_matrix
+
 
 
 #############
@@ -164,40 +166,40 @@ if __name__ == "__main__":
     print(confusion_matrix)
 
     # Calculate the "accuracy"
-print("\n\n--- K-Means 'Accuracy' Calculation ---")
-print("Note: K-Means doesn't know cluster-class mapping.")
-print("We check possibilities and take the best mapping.")
+    print("\n\n--- K-Means 'Accuracy' Calculation ---")
+    print("Note: K-Means doesn't know cluster-class mapping.")
+    print("We check possibilities and take the best mapping.")
 
-# Convert the matrix to a numpy array for easy math
-cm_array = confusion_matrix.values
-print(f"Confusion matrix shape: {cm_array.shape}")
+    # Convert the matrix to a numpy array for easy math
+    cm_array = confusion_matrix.values
+    print(f"Confusion matrix shape: {cm_array.shape}")
 
-# Handle cases where we don't get exactly k clusters
-n_clusters = cm_array.shape[1]
-n_classes = cm_array.shape[0]
+    # Handle cases where we don't get exactly k clusters
+    n_clusters = cm_array.shape[1]
+    n_classes = cm_array.shape[0]
 
-if n_clusters == 1:
-    # Only one cluster found - compare to majority class
-    total_points = np.sum(cm_array)
-    majority_correct = np.max(cm_array)
-    best_accuracy = majority_correct / total_points
-    print(f"Warning: Algorithm converged to only 1 cluster")
-    print(f"Best K-Means 'Accuracy': {best_accuracy * 100:.2f}%")
-    
-elif n_clusters == 2:
-    # Normal case - two clusters
-    # Possibility 1: Cluster 0 = 'absent', Cluster 1 = 'present'
-    correct_1 = cm_array[0, 0] + cm_array[1, 1]
-    # Possibility 2: Cluster 0 = 'present', Cluster 1 = 'absent'
-    correct_2 = cm_array[0, 1] + cm_array[1, 0]
+    if n_clusters == 1:
+        # Only one cluster found - compare to majority class
+        total_points = np.sum(cm_array)
+        majority_correct = np.max(cm_array)
+        best_accuracy = majority_correct / total_points
+        print(f"Warning: Algorithm converged to only 1 cluster")
+        print(f"Best K-Means 'Accuracy': {best_accuracy * 100:.2f}%")
+        
+    elif n_clusters == 2:
+        # Normal case - two clusters
+        # Possibility 1: Cluster 0 = 'absent', Cluster 1 = 'present'
+        correct_1 = cm_array[0, 0] + cm_array[1, 1]
+        # Possibility 2: Cluster 0 = 'present', Cluster 1 = 'absent'
+        correct_2 = cm_array[0, 1] + cm_array[1, 0]
 
-    total_points = np.sum(cm_array)
-    best_accuracy = max(correct_1, correct_2) / total_points
+        total_points = np.sum(cm_array)
+        best_accuracy = max(correct_1, correct_2) / total_points
 
-    print(f"\nTotal points: {total_points}")
-    print(f"Possibility 1 (Cluster 0='absent', Cluster 1='present'): {correct_1} correct")
-    print(f"Possibility 2 (Cluster 0='present', Cluster 1='absent'): {correct_2} correct")
-    print(f"\nBest K-Means 'Accuracy': {best_accuracy * 100:.2f}%")
-    
-else:
-    print(f"Unexpected number of clusters: {n_clusters}")
+        print(f"\nTotal points: {total_points}")
+        print(f"Possibility 1 (Cluster 0='absent', Cluster 1='present'): {correct_1} correct")
+        print(f"Possibility 2 (Cluster 0='present', Cluster 1='absent'): {correct_2} correct")
+        print(f"\nBest K-Means 'Accuracy': {best_accuracy * 100:.2f}%")
+        
+    else:
+        print(f"Unexpected number of clusters: {n_clusters}")
