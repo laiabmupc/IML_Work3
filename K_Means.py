@@ -9,88 +9,81 @@ from sklearn.metrics import confusion_matrix
 #############
 
 class KMeans:
-    def __init__(self, k, X):
-        self.k = k  # Number of centroids
+    def __init__(self, k, X, distance='euclidean', max_iterations=500, tolerance=0.0001):
+        self.k = k  # Number of clusters
         self.X = X  # Dataset
+        self.metric = distance # distance metric
+        self.max_iterations = max_iterations # maximum number of iterations
+        self.tolerance = tolerance # convergence threshold
         self.centroids = {} # Store the centroids information --> center & sample values contained
         self.cluster_assignments = np.zeros(self.X.shape[0], dtype=int) # To store the cluster assignment for each data point
 
     def initialize_centroids(self):
+        # Randomly select 'k' instances (indices)
         random_indices = np.random.choice(self.X.shape[0], self.k, replace=False)
 
+        # Store the 'k' selected instances as centroids
         for idx, random_idx in enumerate(random_indices):
             center = self.X[random_idx].copy()
-            points = []
-            centroid = {
-                'center': center,
-                'points': points,
-            }
-            self.centroids[idx] = centroid
+            self.centroids[idx] = {'center': center, 'points': np.array([])}
 
-    def compute_distance(self, x, y, metric='euclidean'):
+    def compute_distance(self, x, y):
         # x --> sample
         # y --> centroid
         # distance --> euclidean or manhattan
         try:
-            if metric == 'euclidean':
+            if self.metric == 'euclidean':
                 return np.sqrt(np.sum(np.power(x - y, 2)))
 
-            elif metric == 'manhattan':
+            elif self.metric == 'manhattan':
                 return np.sum(np.abs(x - y))
 
         except AttributeError:  # Raised if an attribute reference or assignment fails.
             raise Exception('Metric must be Euclidean or Manhattan')
 
 
-    # Recompute centroids based on the new points
     def compute_centroids(self):
+        """
+        Recompute centroids based on the new points
+        """
         for idx in range(self.k):
-            centroid_points = np.array(self.centroids[idx]['points'])
+            centroid_points = self.centroids[idx]['points']
 
             if centroid_points.size == 0:  # Reinitialize this centroid to a random data point
                 random_idx = np.random.randint(self.X.shape[0])
                 self.centroids[idx]['center'] = self.X[random_idx].copy()
-                continue
+            else:
+                re_computed_center = centroid_points.mean(axis=0)  # Compute each dimension mean
+                self.centroids[idx]['center'] = re_computed_center
 
-            re_computed_center = centroid_points.mean(axis=0)  # Compute each dimension mean
-            self.centroids[idx]['center'] = re_computed_center
-
-
-    # This function assign samples to its nearest centroid
     def assign_centroids(self):
-
+        """
+        Assign samples to their nearest centroid
+        """
         # Delete previous assigned points
         for centroid_idx in self.centroids:
-            self.centroids[centroid_idx]['points'] = []
+            self.centroids[centroid_idx]['points'] = np.array([])
 
         for i, sample in enumerate(self.X): # Iterate with an index to track assignments
-            best_distance = np.inf
-            best_centroid_idx = -1
-            for centroid_idx in self.centroids:
-                # Compute distance
-                distance = self.compute_distance(sample, self.centroids[centroid_idx]['center'], metric='euclidean')
-
-                # Check if the distance is better
-                if distance < best_distance:
-                    best_distance = distance
-                    best_centroid_idx = centroid_idx
-
+            # Compute the distance between the sample and all current centroids
+            distances = np.array([self.compute_distance(sample, self.centroids[centroid_idx]['center']) for centroid_idx in self.centroids])
+            # Retrieve the index of the closest centroid to the sample
+            best_centroid_idx = np.argmin(distances)
             # Assign sample to the nearest centroid
-            self.centroids[best_centroid_idx]['points'].append(sample)
+            self.centroids[best_centroid_idx]['points'] = np.hstack((self.centroids[best_centroid_idx]['points'], sample))
             # Store the cluster assignment for this data point (by its index)
             self.cluster_assignments[i] = best_centroid_idx
-
 
     # Helper function
     def get_centers(self):
         return {idx: self.centroids[idx]['center'] for idx in self.centroids}
 
     # Fit Function
-    def fit(self, max_iterations=1000, tolerance=0):
+    def fit(self):
         self.initialize_centroids()  # Initialize centroids
         self.assign_centroids()  # Assign points to initial centroids
 
-        for i in range(max_iterations):
+        for i in range(self.max_iterations):
             old_centroids_centers = self.get_centers()
 
             self.compute_centroids()
@@ -103,11 +96,12 @@ class KMeans:
                 old_center = old_centroids_centers[idx]  # Get array
                 new_center = new_centroids[idx]
 
-                total_divergence += self.compute_distance(old_center, new_center, metric='euclidean')
+                total_divergence += self.compute_distance(old_center, new_center)
 
-            if total_divergence < tolerance:
+            if total_divergence < self.tolerance:
                 print(f"Algorithm converged after {i + 1} iterations.")
-                break
+                # Return both the centroid information and the assignment list
+                return self.centroids, self.cluster_assignments
 
         # Return both the centroid information and the assignment list
         return self.centroids, self.cluster_assignments
@@ -145,9 +139,9 @@ if __name__ == "__main__":
 
     # Create and fit your K-Means model
     k = 2 # Since we know there are 2 classes
-    kmeans_model = KMeans(k=k, X=X_data)
+    kmeans_model = KMeans(k=k, X=X_data, max_iterations=500, tolerance=1e-10)
 
-    final_clusters_data, cluster_assignments = kmeans_model.fit(max_iterations=500, tolerance=1e-10)
+    final_clusters_data, cluster_assignments = kmeans_model.fit()
 
     #############
     ## CHATGPT ##

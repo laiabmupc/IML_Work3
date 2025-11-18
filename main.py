@@ -39,7 +39,6 @@ def main(dataset, algorithm, parameters):
 
 
 
-
 if __name__ == '__main__':
     dataset = ['hepatitis', 'hypothyroid', 'heart-statlog'][2]
     algorithm = ['agglomerative', 'gaussian_mixture', 'k-means'][1]
