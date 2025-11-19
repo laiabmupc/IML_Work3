@@ -2,10 +2,10 @@
 
 ## Team Members
 
--   Antonio Arcas - [antonio.arcas\@estudiantat.upc.edu](mailto:antonio.arcas@estudiantat.upc.edu){.email}
--   Laia Barcenilla - [laia.barcenilla\@estudiantat.upc.edu](mailto:laia.barcenilla@estudiantat.upc.edu){.email}
--   Núria Cardona - [nuria.cardona\@estudiantat.upc.edu](mailto:nuria.cardona@estudiantat.upc.edu){.email}
--   Ricard Garcia - [ricard.garcia\@estudiantat.upc.edu](mailto:ricard.garcia@estudiantat.upc.edu){.email}
+-   Antonio Arcas - [antonio.arcas\@estudiantat.upc.edu](mailto:antonio.arcas@estudiantat.upc.edu)
+-   Laia Barcenilla - [laia.barcenilla\@estudiantat.upc.edu](mailto:laia.barcenilla@estudiantat.upc.edu)
+-   Núria Cardona - [nuria.cardona\@estudiantat.upc.edu](mailto:nuria.cardona@estudiantat.upc.edu)
+-   Ricard Garcia - [ricard.garcia\@estudiantat.upc.edu](mailto:ricard.garcia@estudiantat.upc.edu)
 
 ## Project Description
 
