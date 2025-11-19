@@ -1,10 +1,15 @@
 import numpy as np
 import pandas as pd
 from K_Means import *
+from K_Means_pp import *
+from FEKM import *
+
+from sklearn.metrics import confusion_matrix
 
 import matplotlib.pyplot as plt
 from sklearn.datasets import make_blobs
 from sklearn.preprocessing import MinMaxScaler
+import random
 
 #################################
 ## CREATE DATASET & VISUALIZE ##
@@ -83,7 +88,7 @@ if __name__ == "__main__":
         # 2. Create and fit the K-Means model
         k = 3  # We know the toy dataset has 3 centers
         print(f"Running K-Means with k={k}...")
-        kmeans_model = KMeans(k=k, X=X_data)
+        kmeans_model = FEKM(k=k, X=X_data)
 
         # The plot_clusters function uses the first return value
         final_clusters_data, _ = kmeans_model.fit(max_iterations=100, tolerance=0)

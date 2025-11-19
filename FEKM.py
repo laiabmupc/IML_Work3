@@ -4,11 +4,11 @@ from sklearn.metrics import confusion_matrix
 
 
 
-#############
-## K-MEANS ##
-#############
+####################################
+## Far Efficient K-Means --> FEKM ##
+####################################
 
-class KMeans:
+class FEKM:
     def __init__(self, k, X):
         self.k = k  # Number of centroids
         self.X = X  # Dataset
@@ -16,16 +16,38 @@ class KMeans:
         self.cluster_assignments = np.zeros(self.X.shape[0], dtype=int) # To store the cluster assignment for each data point
 
     def initialize_centroids(self):
-        random_indices = np.random.choice(self.X.shape[0], self.k, replace=False) # Do not replace to avoid picking the same point twice.
+        centers = []
+        # Compute the center of our dataset (not a real point)
+        dataset_mean = self.X.mean(axis=0)
 
-        for idx, random_idx in enumerate(random_indices):
-            center = self.X[random_idx].copy()
-            points = []
-            centroid = {
-                'center': center,
-                'points': points,
+        # Select the point that is closer to the center
+        distances_to_mean = [np.sqrt(np.sum(np.power(sample - dataset_mean, 2))) for sample in self.X]
+        first_idx = np.argmax(distances_to_mean) # select the idx of the closest point to the mean
+        centers.append(self.X[first_idx])
+
+        # Compute the  
+        for _ in range(self.k - 1):
+            min_distances = []
+            
+            for sample in self.X:
+                # Calculate distances from sample to all existing centers
+                dists_to_current_centers = [np.sqrt(np.sum(np.power(sample - c, 2))) for c in centers]
+                
+                # Find the distance to the closest center
+                min_dist_to_any_center = min(dists_to_current_centers)
+                min_distances.append(min_dist_to_any_center)
+            
+            # Select the point that has the maximum of the minimum distances --> FARTHER
+            next_idx = np.argmax(min_distances)
+            centers.append(self.X[next_idx])
+
+
+        for idx, c in enumerate(centers):
+            self.centroids[idx] = {
+                'center': c,
+                'points': [],
             }
-            self.centroids[idx] = centroid
+
 
     def compute_distance(self, x, y, metric='euclidean'):
         # x --> sample
@@ -145,7 +167,7 @@ if __name__ == "__main__":
 
     # Create and fit your K-Means model
     k = 2 # Since we know there are 2 classes
-    kmeans_model = KMeans(k=k, X=X_data)
+    kmeans_model = FEKM(k=k, X=X_data)
 
     final_clusters_data, cluster_assignments = kmeans_model.fit(max_iterations=500, tolerance=1e-10)
 

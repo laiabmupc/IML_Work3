@@ -4,11 +4,11 @@ from sklearn.metrics import confusion_matrix
 
 
 
-#############
-## K-MEANS ##
-#############
+################
+## K-MEANS ++ ##
+################
 
-class KMeans:
+class KMeans_PP:
     def __init__(self, k, X):
         self.k = k  # Number of centroids
         self.X = X  # Dataset
@@ -16,16 +16,37 @@ class KMeans:
         self.cluster_assignments = np.zeros(self.X.shape[0], dtype=int) # To store the cluster assignment for each data point
 
     def initialize_centroids(self):
-        random_indices = np.random.choice(self.X.shape[0], self.k, replace=False) # Do not replace to avoid picking the same point twice.
+        centroids_init = []
 
-        for idx, random_idx in enumerate(random_indices):
-            center = self.X[random_idx].copy()
-            points = []
-            centroid = {
-                'center': center,
-                'points': points,
+        # Choose first centroid randomly
+        random_first_idx = np.random.randint(self.X.shape[0])
+        centroids_init.append(self.X[random_first_idx]) 
+
+        for _ in range(self.k-1):
+            distances = []
+
+            # Compute the distance to each point to its nearest computed centroid
+            for sample in self.X:
+                dist_to_centroids = [np.sqrt(np.sum(np.power(sample - c, 2))) for c in centroids_init] # compute all the distances --> euclidean 
+                min_dist = min(dist_to_centroids)
+                distances.append(min_dist)
+
+            distances = np.array(distances) # Convert to array
+            distances_sq = distances **2 # Square the distances
+            # Compute probabilities (kmeans ++ --> further points will have higher probability to be choosen)
+            probabilities = distances_sq / np.sum(distances_sq) # weights
+
+            # Chose next centroid using the computed probabilities
+            next_centroid_idx = np.random.choice(self.X.shape[0], p=probabilities)
+            centroids_init.append(self.X[next_centroid_idx])
+
+        # Store the final computed centroid to the disctionary
+        for idx, c in enumerate(centroids_init):
+            self.centroids[idx] = {
+                'center': c,
+                'points': [],
             }
-            self.centroids[idx] = centroid
+
 
     def compute_distance(self, x, y, metric='euclidean'):
         # x --> sample
@@ -145,7 +166,7 @@ if __name__ == "__main__":
 
     # Create and fit your K-Means model
     k = 2 # Since we know there are 2 classes
-    kmeans_model = KMeans(k=k, X=X_data)
+    kmeans_model = KMeans_PP(k=k, X=X_data)
 
     final_clusters_data, cluster_assignments = kmeans_model.fit(max_iterations=500, tolerance=1e-10)
 
