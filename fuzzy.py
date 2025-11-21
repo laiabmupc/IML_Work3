@@ -5,11 +5,11 @@ class s_FCM():
         # Set a seed for reproducibility
         np.random.seed(seed)
         # Input data
-        self.X = X
+        self.X = X.to_numpy(dtype=float)
         # Number of clusters
         self.c = c
         # Fuzzy exponent
-        if m <= 1:
+        if m < 1:
             raise ValueError("m must be > 1")
         self.m = m
         # Maximum number of iterations
@@ -44,8 +44,12 @@ class s_FCM():
 
 
     def membership_matrix(self):
-        exp = -2/(self.m-1)
+        if self.m == 1:
+            exp = 1 # VERIFICAR EL VALOR QUE HA DE TENIR L'EXPONENT QUAN m = 1
+        else:
+            exp = -2/(self.m-1) # add 1e-10 to avoid dividing by 0
         d_sq = self.distance_sq()
+        d_sq = np.maximum(d_sq, 1e-10) # add 1e-10 to avoid numerical conflicts in the numerator
         numerator = d_sq**exp
         denominator = np.sum(numerator, axis=1, keepdims=True)
         # (n_samples, n_centroids)
@@ -76,7 +80,7 @@ class s_FCM():
         Update the centroids according to the membership matrix (with applied suppression)
         '''
         U_m = self.U ** self.m 
-        numerator = U_m @ self.X.T # transpose to have (n_features, n_samples)
+        numerator = U_m @ self.X
         denominator = np.sum(U_m, axis=1, keepdims=True)
         # Update the centroids
         self.v = numerator / denominator
