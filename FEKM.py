@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 from sklearn.metrics import confusion_matrix
-from K_Means import KMeans 
+from K_Means import KMeans
+from scipy.spatial.distance import cdist
 
 
 
@@ -15,36 +16,76 @@ class FEKM(KMeans): # Inherit Class from KMeans, whe'll only change how we init
 
     def initialize_centroids(self):
         centers = []
-        # Compute the center of our dataset (not a real point)
-        dataset_mean = self.X.mean(axis=0)
+        n_samples = self.X.shape[0]
+        available_points = np.ones(n_samples, dtype=bool) # Use data that is not been classified
 
-        # Select the point that is farther to the center        
-        if self.metric == 'euclidean':
-            distances_to_mean = np.linalg.norm(self.X - dataset_mean, axis=1)
-        elif self.metric == 'manhattan':
-            distances_to_mean = np.sum(np.abs(self.X - dataset_mean), axis=1)
-        
-        first_idx = np.argmax(distances_to_mean) # select the idx of the closest point to the mean
-        centers.append(self.X[first_idx])
+        # Compute the matrix with all the distances --> points to all points
+        all_dists = cdist(self.X, self.X) # Use default distance --> euclidean
 
-        # Compute the  
-        for _ in range(self.k - 1):
-            # Calculate distance from every point to every current center
-            current_centers_array = np.array(centers)
-            
-            # Distance matrix calculation
+        # Get the indices of the maximum indices
+        np.fill_diagonal(all_dists, -1) # Ensure we do not get point against itself
+        idx1, idx2 = np.unravel_index(np.argmax(all_dists), all_dists.shape) # Get the farthest points indices
+
+        # Initialize the first centers
+        center1 = self.X[idx1]
+        center2 = self.X[idx2]
+
+        # Cluster for all the points
+        cluster_1 = []
+        cluster_2 = []
+
+        # Assign and remove points, up to the next threshold
+        threshold_limit = int(0.5 * (n_samples / self.k))
+
+        # We iterate through the data up to the threshold
+        for i in range(threshold_limit):
+            # Calculate distance of the point to both centers
             if self.metric == 'euclidean':
-                # Efficient calculation of distances to all centers
-                dists = np.array([np.linalg.norm(self.X - c, axis=1) for c in centers]).T
+                d1 = np.linalg.norm(self.X[i] - center1)
+                d2 = np.linalg.norm(self.X[i] - center2)
+
+            elif self.metric == 'mahnattan':
+                d1 = np.sum(np.abs(self.X[i] - center1))
+                d2 = np.sum(np.abs(self.X[i] - center2))
+
+            # Assign to closer cluster and remove from the available dataset
+            if d1 <= d2:
+                cluster_1.append(self.X[i])
             else:
-                dists = np.array([np.sum(np.abs(self.X - c), axis=1) for c in centers]).T
+                cluster_2.append(self.X[i])
             
-            # Find the minimum distance to ANY existing center for each point
-            min_dists = np.min(dists, axis=1)
+            available_points[i] = False
+
+        # Update centers based on points means
+        if len(cluster_1) > 0:
+            center1 = np.mean(cluster_1, axis=0)
+        if len(cluster_2) > 0:
+            center2 = np.mean(cluster_2, axis=0)
             
-            # Select the point with the MAXIMUM of these minimum distances (Farthest from the group)
-            next_idx = np.argmax(min_dists)
-            centers.append(self.X[next_idx])
+        centers.append(center1)
+        centers.append(center2)
+
+        # Define remaining centers (k-2)
+        for _ in range(self.k - 2):
+            # Only look at points that haven't been checked removed
+            X_remaining = self.X[available_points]
+            
+            if len(X_remaining) == 0:
+                break
+                
+            centers_array = np.array(centers)
+            
+            # Distances from remaining points to existing centers
+            dists_remaining = cdist(X_remaining, centers_array)
+            
+            # Find minimum distance to the centers for each point 
+            min_dists = np.min(dists_remaining, axis=1)
+            
+            # Select the maximum of the minimums
+            max_dist_idx = np.argmax(min_dists)
+            
+            # Add to centers
+            centers.append(X_remaining[max_dist_idx])
 
 
         for idx, c in enumerate(centers):
@@ -78,7 +119,10 @@ if __name__ == "__main__":
     model = FEKM(k=k, X=X_data)
     
     # Fit
+    import time
+    # initial = time.time()
     labels, centers = model.fit(max_iterations=500, tolerance=1e-10)
+    # print(time.time()-initial)
 
     # PRINT RESULTS
     print("\nCluster Sizes:")
