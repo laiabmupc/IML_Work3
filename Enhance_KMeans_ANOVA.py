@@ -1,131 +1,127 @@
 import numpy as np
 import pandas as pd
-from sklearn.metrics import confusion_matrix
-from K_Means import KMeans 
-import matplotlib.pyplot as plt
-from sklearn.datasets import make_blobs
-from sklearn.decomposition import PCA # Needed to visualize high-dimensional data
+from scipy.stats import bartlett
+from sklearn.preprocessing import StandardScaler
 
+####################################
+## ENHANCED K-MEANS (ANOVA-BASED) ##
+####################################
+class ANOVA_KMeans:
+    def __init__(self, X, alpha=0.05):
+        self.X = X
+        self.alpha = alpha # Significance level Bartlett test.
+        self.k_final = 0
+        self.labels = np.zeros(self.X.shape[0], dtype=int) # # Initialize labels array with zeros --> to which cluster each point belongs to
+        self.centroids = {}
 
-class KMeans_ANOVA(KMeans):
-    def __init__(self, k, X, metric='euclidean', alpha = 0.5):
-        super().__init__(k, X, metric=metric) # Perform the KMeans class init
-        self.alpha = alpha # Specific hyper-parameter
-
-        # Simulate the Energy (in the real world this would come from the sensors)
-        np.random.seed(23)
-        self.energies = np.random.uniform(0.1, 1.0, size=self.X.shape[0])
-    
-
-    # We now also store the indices, we will later use them to know the Energy
-    def assign_centroids(self):
-        for centroid_idx in self.centroids:
-            self.centroids[centroid_idx]['points'] = []
-            self.centroids[centroid_idx]['indices'] = [] # Indices
-
-        for i, sample in enumerate(self.X): # Iterate with an index to track assignments
-            best_distance = np.inf
-            best_centroid_idx = -1
-            for centroid_idx in self.centroids:
-                # Compute distance
-                distance = self.compute_distance(sample, self.centroids[centroid_idx]['center'], metric=self.metric)
-                
-
-                # Check if the distance is better
-                if distance < best_distance:
-                    best_distance = distance
-                    best_centroid_idx = centroid_idx
-
-            # Assign sample to the nearest centroid
-            self.centroids[best_centroid_idx]['points'].append(sample)
-            self.centroids[best_centroid_idx]['indices'].append(i)
-            # Store the cluster assignment for this data point (by its index)
-            self.cluster_assignments[i] = best_centroid_idx
-
-     # Recompute centroids based on the GEOMETRIC DISTANCE & HAVING HIGH ENERGY
-    def compute_centroids(self):
-        for idx in range(self.k):
-            indices = self.centroids[idx]['indices']
-            points = np.array(self.centroids[idx]['points'])
-
-            if points.size == 0:  # Reinitialize this centroid to a random data point
-                random_idx = np.random.randint(self.X.shape[0])
-                self.centroids[idx]['center'] = self.X[random_idx].copy()
-                continue
-
-            # Compute geometric center --> theoretical best 
-            geometric_center = points.mean(axis=0)  # Compute each dimension mean
-
-            # Find the point that is best to be the cluster center
-            best_candidate_idx = -1
-            max_fitness = -np.inf
-
-            # Calculate max distance for normalization
-            if self.metric == 'euclidean':
-                dists = np.linalg.norm(points - geometric_center, axis=1)
-            elif self.metric == 'manhattan':
-                dists = np.sum(np.abs(points - geometric_center), axis=1)
-
-            max_dist = np.max(dists) if np.max(dists) > 0 else 1.0
-
-            # Loop through every member of the cluster
-            for i, real_idx in enumerate(indices):
-                # Get Energy
-                energy = self.energies[real_idx]
-                # Get Distance to the geometric center
-                dist = dists[i]
-
-                # FITNESS FUNCTION (Based on Harb et al.) --> trade off between distance & energy
-                # Normalize distance (1 = center, 0 = edge)
-                dist_score = (max_dist - dist) / max_dist
-                
-                # Weighted score 
-                    # HIGH ALPHA --> prioritze ENERGY
-                fitness = (self.alpha * energy) + ((1 - self.alpha) * dist_score)
-
-                if fitness > max_fitness:
-                    max_fitness = fitness
-                    best_candidate_idx = real_idx
-
-            # Update the centroid
-            self.centroids[idx]['center'] = self.X[best_candidate_idx].copy()
-
-    # Check if the cluster data is similar enough to aggregate.
-    def anova_aggregation(self, threshold_factor=0.5):
-        # Checks intra-cluster variance to decide on aggregation.
-        results = {}
+    # Bartlett Test --> determine if the points in the same cluster are redundant (similar) enough. 
+    def variance_study(self, indices):
+        # Only 1 point case
+        if len(indices) == 1: 
+            return True
         
-        # Calculate Global Variance for context
-        global_var = np.mean(np.var(self.X, axis=0))
-        # Compute threshold based on the variance
-        threshold = global_var * threshold_factor
+        # Extrcat data belonging to this specific cluster
+        cluster_data = self.X[indices]
+        
+        try:
+            # Bartlett --> null hypothesis = all input samples have equal variances.
+            stat, p_value = bartlett(*cluster_data) # Unpack rows as separate arguments.
+        # Handle cases where variance is 0
+        except ValueError:
+            return True
+        
+        return p_value > self.alpha
 
-        for idx in self.centroids:
-            points = np.array(self.centroids[idx]['points'])
+
+    # If a cluster has high variance, split it into 2 sub-clusters
+    def internal_kmeans_split(self, indices):
+        subset = self.X[indices]
+        np.random.seed(23)
+        
+        # Randomly initialize 2 centroids from the current subset
+        center_idxs = np.random.choice(subset.shape[0], 2, replace=False)        
+        centers = subset[center_idxs]
+        subset_labels = np.zeros(subset.shape[0], dtype=int)
+        
+        # Run a FAST K-Means --> fixed 10 iterations for speed
+        for _ in range(10):
+            # Compute Euclidean Distance between points and 2 centroids
+            dists = np.linalg.norm(subset[:, None] - centers, axis=2)
+            new_labels = np.argmin(dists, axis=1)
             
-            if len(points) < 2:
-                results[idx] = "RAW (Not enough data)"
+            # Check convergence
+            if np.array_equal(subset_labels, new_labels): 
+                break
+            subset_labels = new_labels
+            
+            # Update centroids --> mean of assigned points
+            for i in range(2):
+                if np.any(subset_labels == i):
+                    centers[i] = subset[subset_labels == i].mean(axis=0)
+        
+        # Return the indices separated into two groups
+        return [indices[subset_labels == 0], indices[subset_labels == 1]]
+
+
+    # Recursive Divisive Clustering
+    def fit(self, max_iterations=None, tolerance=None):
+        # Max iterations is not used as default -> we are based on variance.
+        all_indices = np.arange(self.X.shape[0])
+        Q = [all_indices] # Queue for Breadth-First Search splitting
+        final_clusters_indices = []
+        
+        # Loop until queue is empty
+        while Q:
+            current_indices = Q.pop(0) # get next cluster to analyze
+            if len(current_indices) == 0: 
                 continue
 
-            # Mean of variances across dimensions
-            variance = np.mean(np.var(points, axis=0))
+            # Check if this cluster is redundant
+            is_redundant = self.variance_study(current_indices)
             
-            if variance < threshold:
-                decision = "AGGREGATE (Data is similar)"
+            # If variance is low the cluster is saved
+            if is_redundant:
+                final_clusters_indices.append(current_indices)
+            # If variance is high, split it into 2 sub-clusters
             else:
-                decision = "SEND RAW (High Variance)"
+                sub_clusters = self.internal_kmeans_split(current_indices)
+                Q.extend(sub_clusters) # Add new sub-clusters back to the Queue to be tested again
 
-            print(f"Cluster {idx}: Var={variance:.4f} -> {decision}")
-            results[idx] = decision
+        # Process Final Results
+        self.k_final = len(final_clusters_indices)
+        self.final_centroids = np.zeros((self.k_final, self.X.shape[1])) 
+        
+        # Assign final labels and compute final centroids
+        for label_id, indices in enumerate(final_clusters_indices):
+            # Update labels map
+            self.labels[indices] = label_id
             
-        return results
+            # Compute centroid --> mean
+            center_coords = self.X[indices].mean(axis=0)
+            self.final_centroids[label_id] = center_coords
+            
+            # Store in dictionary to be returnfed
+            self.centroids[label_id] = {
+                'center': center_coords,
+                'indices': indices,
+                'size': len(indices)
+            }
+
+        # Comptue Data Reduction 
+        reduction = (self.X.shape[0] - self.k_final) / self.X.shape[0] * 100
+        print(f'Algorithm converged. Found {self.k_final} clusters.')
+        print(f'Data reduction {round(reduction, 2)}%')
+        
+        # Return to which centroid each sample belongs and centroid coordinates
+        return self.labels, self.final_centroids
 
 
-from sklearn.preprocessing import StandardScaler # <--- 1. Import this
 
 if __name__ == "__main__":
     # LOAD DATA
-    dataset = './data/hypothyroid.preprocessed.csv'
+    dataset = './data/heart-statlog.preprocessed.csv'
+    # dataset = './data/hepatitis.preprocessed.csv'
+    # dataset = './data/hypothyroid.preprocessed.csv'
 
     try:
         data = pd.read_csv(dataset, header=0)
@@ -138,34 +134,35 @@ if __name__ == "__main__":
     if 'TBG' in X_features.columns: X_features = X_features.drop(columns=['TBG'])
     X_data = X_features.values.astype(float)
 
-    # --- CRITICAL FIX: SCALE THE DATA ---
-    # This ensures variance is comparable across all features
+    # SCALING
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_data) 
-    # ------------------------------------
     
-    # RUN ENHANCED K-MEANS
-    print("\n--- Running Enhanced K-Means (Harb et al.) ---")
-    k = 2
-    
-    # Use X_scaled instead of X_data
-    model = KMeans_ANOVA(k=k, X=X_scaled, alpha=0.5) 
+    # RUN
+    print("\n Running Enhanced K-Means (Harb et al.)")
+    model = ANOVA_KMeans(X=X_scaled, alpha=0.05)
     
     # Fit
-    labels, centers = model.fit(max_iterations=500, tolerance=1e-10)
-
-    # PRINT RESULTS
-    print("\nCluster Sizes:")
+    labels, centers = model.fit()
+    
+    # PRINT RESULTS WITH VARIANCE
     unique_labels, counts = np.unique(labels, return_counts=True)
-    for i, label in enumerate(unique_labels):
-        print(f"  Cluster {label}: {counts[i]} points")
+    
+    # Sort indices by cluster size (descending)
+    sorted_indices = np.argsort(-counts)
+    
+    for i in sorted_indices[:20]: # Show only top 20
+        label = unique_labels[i]
+        count = counts[i]
         
-    print(f"\nCentroids finalized at shape: {centers.shape}")
-
-    # ANOVA AGGREGATION CHECK
-    print("\n--- Running ANOVA Check ---")    
-
-    # Now the threshold is meaningful because all features have variance ~1.0
-    # A factor of 0.5 means: "Aggregate if cluster is half as wide as the whole dataset"
-    model.anova_aggregation(threshold_factor=0.5)
-
+        # 1. Get all points belonging to this cluster
+        cluster_points = X_scaled[labels == label]
+        
+        # 2. Calculate Variance for this cluster
+        # We take the variance of each feature, then average them to get a single score
+        cluster_var = np.mean(np.var(cluster_points, axis=0))
+        
+        print(f"  Cluster {label}: {count} points | Avg Variance: {cluster_var:.4f}")
+    
+    print(labels)
+    print(centers)
